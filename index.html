@@ -14,18 +14,20 @@
 <script>
 const FIREBASE_CONFIG={apiKey:"AIzaSyDj3xPVAVtvzRendtbUQddQFFz3qzz2rP8",authDomain:"nakahara-task2.firebaseapp.com",databaseURL:"https://nakahara-task2-default-rtdb.firebaseio.com",projectId:"nakahara-task2",storageBucket:"nakahara-task2.firebasestorage.app",messagingSenderId:"320645986365",appId:"1:320645986365:web:6c803e53e74715ff3ad254"};
 const FB_OK=FIREBASE_CONFIG.apiKey!==""&&FIREBASE_CONFIG.databaseURL!=="";
-let db=null;
-if(FB_OK){firebase.initializeApp(FIREBASE_CONFIG);db=firebase.database()}
+let db=null;if(FB_OK){firebase.initializeApp(FIREBASE_CONFIG);db=firebase.database()}
 </script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Noto Sans JP',sans-serif;background:#f8fafc;min-height:100vh}
-input,button,select,textarea{font-family:'Noto Sans JP',sans-serif}
-button{cursor:pointer}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Noto Sans JP',sans-serif;background:#f8fafc;min-height:100vh}
+input,button,select,textarea{font-family:'Noto Sans JP',sans-serif}button{cursor:pointer}
 @keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes alertPulse{0%,100%{opacity:1}50%{opacity:0.6}}
 .hov{transition:all .12s ease}.hov:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.08)!important}
-table td,table th{border-bottom:1px solid #f1f5f9}
-.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+table td,table th{border-bottom:1px solid #f1f5f9}.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+.alert-banner{animation:alertPulse 1.5s infinite}
+.shift-cell{cursor:pointer;min-height:32px;border-radius:6px;transition:background .15s}
+.shift-cell:hover{background:#f1f5f9!important}
+.shift-empty{min-height:32px;cursor:pointer;border-radius:6px;display:flex;align-items:center;justify-content:center}
+.shift-empty:hover{background:#f1f5f9}
 @supports(padding:env(safe-area-inset-bottom)){body{padding-bottom:env(safe-area-inset-bottom)}}
 </style>
 </head>
@@ -33,12 +35,14 @@ table td,table th{border-bottom:1px solid #f1f5f9}
 <div id="root"></div>
 <script type="text/babel">
 const{useState,useEffect,useRef,useCallback}=React;
-
 function fbW(p,d){if(db)db.ref(p).set(d)}
 function fbL(p,cb){if(!db)return()=>{};const r=db.ref(p);r.on("value",s=>{cb(s.val())});return()=>r.off("value")}
+function playAlertSound(){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const t=(f,s,d)=>{const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;o.type="sine";g.gain.setValueAtTime(0.3,ctx.currentTime+s);g.gain.exponentialRampToValueAtTime(0.01,ctx.currentTime+s+d);o.start(ctx.currentTime+s);o.stop(ctx.currentTime+s+d)};t(880,0,0.15);t(1100,0.2,0.15);t(880,0.4,0.3)}catch(e){}}
+function requestNotifPermission(){if("Notification" in window&&Notification.permission==="default")Notification.requestPermission()}
+function sendNotif(title,body){if("Notification" in window&&Notification.permission==="granted"){try{new Notification(title,{body,tag:title})}catch(e){if(navigator.serviceWorker&&navigator.serviceWorker.ready)navigator.serviceWorker.ready.then(r=>r.showNotification(title,{body})).catch(()=>{})}}}
 
 const SHIFT_MEMBERS=["柳田宗則","横井一馬","シンくん","髙橋岳","岡田健一郎","田島惇作","東山真之介","小金丸拓也"];
-const SD=[
+const DEFAULT_SHIFTS=[
   {time:"23:30",s:[null,null,{t:"出勤",d:"出社(23:00〜)\n注文確認・トドケル側とやりとり\n発注書作成・集計・発注"},null,null,null,{t:"出勤",d:"出社(23:45〜)"},null]},
   {time:"00:00",s:[null,null,null,null,null,{t:"出勤",d:"出勤"},{t:"業務",d:"保冷剤をホウスイから持って来る\n東発に荷物を取りに行く"},{t:"出勤",d:"出勤"}]},
   {time:"00:30",s:[null,null,null,null,null,{t:"業務",d:"集計・発注"},{t:"業務",d:"ハワイの野〆タイ巻き梱包\nハマチ振り分け\n東橋ハマチ20本巻いて梱包"},{t:"業務",d:"集計"}]},
@@ -62,16 +66,16 @@ const SD=[
 ];
 
 const DEFAULT_CUSTOMERS=[
-  {id:"c1",name:"東橋",deadline:"03:30",delivery:"04:00",status:"preparing",memo:""},
-  {id:"c2",name:"力生",deadline:"03:30",delivery:"04:00",status:"preparing",memo:""},
-  {id:"c3",name:"アドバンス",deadline:"06:30",delivery:"07:00",status:"preparing",memo:""},
-  {id:"c4",name:"ネクスト",deadline:"07:30",delivery:"10:00",status:"preparing",memo:""},
-  {id:"c5",name:"マルセイ",deadline:"09:00",delivery:"10:00",status:"preparing",memo:""},
-  {id:"c6",name:"大都",deadline:"09:30",delivery:"10:30",status:"preparing",memo:""},
-  {id:"c7",name:"オーシャンマレー",deadline:"09:00",delivery:"11:30",status:"preparing",memo:""},
-  {id:"c8",name:"ルナ",deadline:"11:00",delivery:"11:40",status:"preparing",memo:""},
-  {id:"c9",name:"ハワイ",deadline:"12:00",delivery:"13:00",status:"preparing",memo:""},
-  {id:"c10",name:"トドケル",deadline:"10:00",delivery:"11:30",status:"preparing",memo:""},
+  {id:"c1",name:"東橋",deadline:"03:30",delivery:"04:00",status:"preparing"},
+  {id:"c2",name:"力生",deadline:"03:30",delivery:"04:00",status:"preparing"},
+  {id:"c3",name:"アドバンス",deadline:"06:30",delivery:"07:00",status:"preparing"},
+  {id:"c4",name:"ネクスト",deadline:"07:30",delivery:"10:00",status:"preparing"},
+  {id:"c5",name:"マルセイ",deadline:"09:00",delivery:"10:00",status:"preparing"},
+  {id:"c6",name:"大都",deadline:"09:30",delivery:"10:30",status:"preparing"},
+  {id:"c7",name:"オーシャンマレー",deadline:"09:00",delivery:"11:30",status:"preparing"},
+  {id:"c8",name:"ルナ",deadline:"11:00",delivery:"11:40",status:"preparing"},
+  {id:"c9",name:"ハワイ",deadline:"12:00",delivery:"13:00",status:"preparing"},
+  {id:"c10",name:"トドケル",deadline:"10:00",delivery:"11:30",status:"preparing"},
 ];
 
 const CSTATUS=[{id:"preparing",label:"準備中",color:"#f59e0b",bg:"#fffbeb"},{id:"packed",label:"梱包済",color:"#3b82f6",bg:"#eff6ff"},{id:"delivered",label:"搬入済",color:"#22c55e",bg:"#f0fdf4"}];
@@ -79,19 +83,20 @@ const STATUSES=[{id:"todo",label:"未着手",icon:"○",color:"#94a3b8",bg:"#f1f
 const PRIORITIES=[{id:"high",label:"高",color:"#ef4444"},{id:"mid",label:"中",color:"#f59e0b"},{id:"low",label:"低",color:"#94a3b8"}];
 const TAGS=["ネクスト","オーシャンマレー","ルナ","ハワイ","東橋","マルセイ","大都","力生","アドバンス","トドケル","その他"];
 const COLORS=["#3b82f6","#8b5cf6","#ec4899","#f97316","#14b8a6","#06b6d4","#84cc16","#a855f7","#e11d48","#0891b2","#65a30d","#c026d3","#ea580c","#0d9488","#6366f1","#dc2626"];
+const SLOT_TYPES=["出勤","業務","休憩","梱包","搬入"];
 const SLOT_C={"出勤":{bg:"#dbeafe",c:"#2563eb",b:"#93c5fd"},"業務":{bg:"#fef3c7",c:"#b45309",b:"#fcd34d"},"休憩":{bg:"#e0e7ff",c:"#4338ca",b:"#a5b4fc"},"梱包":{bg:"#fce7f3",c:"#be185d",b:"#f9a8d4"},"搬入":{bg:"#d1fae5",c:"#047857",b:"#6ee7b7"}};
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function mc(i){return COLORS[((i%COLORS.length)+COLORS.length)%COLORS.length]}
-function mKey(d){const x=new Date(d);return`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`}
-function mLabel(k){return`${parseInt(k.split("-")[1])}月`}
+function mKey(d){const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")}
+function mLabel(k){return parseInt(k.split("-")[1])+"月"}
 function last6(){const r=[],n=new Date();for(let i=5;i>=0;i--)r.push(mKey(new Date(n.getFullYear(),n.getMonth()-i,1)));return r}
 function todayStr(){return new Date().toISOString().split("T")[0]}
 function timeToMin(t){if(!t||typeof t!=="string")return 0;const p=t.split(":");if(p.length<2)return 0;const[h,m]=p.map(Number);if(isNaN(h)||isNaN(m))return 0;return h*60+m}
 function nowMin(){const d=new Date();return d.getHours()*60+d.getMinutes()}
-function nowTimeStr(){const d=new Date();return`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`}
-function fmtTime(min){const h=Math.floor(min/60)%24;const m=min%60;return`${h}:${String(m).padStart(2,"0")}`}
+function nowTimeStr(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")}
 
+/* ── Modals ── */
 function Tooltip({slot,onClose}){
   if(!slot)return null;const sc=SLOT_C[slot.t]||SLOT_C["業務"];
   return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.35)"}}>
@@ -105,75 +110,173 @@ function Tooltip({slot,onClose}){
   </div>);
 }
 
-function ShiftPanel({members}){
-  const[tip,setTip]=useState(null);const[sf,setSf]=useState("all");
-  const idx=sf==="all"?SHIFT_MEMBERS.map((_,i)=>i):[SHIFT_MEMBERS.indexOf(sf)].filter(i=>i>=0);
-  const noData=sf!=="all"&&!SHIFT_MEMBERS.includes(sf);const nt=nowTimeStr();
+function EditModal({customer,onSave,onClose}){
+  const[dl,setDl]=useState(customer.deadline||"");const[dv,setDv]=useState(customer.delivery||"");
+  return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.35)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,padding:"24px",maxWidth:360,width:"90%",boxShadow:"0 20px 60px rgba(0,0,0,0.18)"}}>
+      <h3 style={{fontSize:16,fontWeight:700,color:"#1e293b",marginBottom:16}}>{customer.name} の時間編集</h3>
+      <div style={{marginBottom:16}}><label style={{fontSize:13,color:"#475569",fontWeight:600,display:"block",marginBottom:6}}>⏰ 締め時間</label><input type="time" value={dl} onChange={e=>setDl(e.target.value)} style={{width:"100%",padding:"12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:16,outline:"none"}}/></div>
+      <div style={{marginBottom:20}}><label style={{fontSize:13,color:"#475569",fontWeight:600,display:"block",marginBottom:6}}>🚛 搬入時間</label><input type="time" value={dv} onChange={e=>setDv(e.target.value)} style={{width:"100%",padding:"12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:16,outline:"none"}}/></div>
+      <div style={{display:"flex",gap:8}}><button onClick={onClose} style={{flex:1,padding:"10px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:8,fontSize:14,fontWeight:600}}>キャンセル</button><button onClick={()=>{if(dl&&dv)onSave(customer.id,dl,dv)}} style={{flex:1,padding:"10px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,opacity:dl&&dv?1:0.5}}>保存</button></div>
+    </div>
+  </div>);
+}
+
+/* ── Shift Edit Modal ── */
+function ShiftEditModal({memberName,time,slot,onSave,onDelete,onClose}){
+  const[type,setType]=useState(slot?slot.t:"業務");
+  const[detail,setDetail]=useState(slot?slot.d:"");
+  return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.35)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,padding:"24px",maxWidth:400,width:"92%",boxShadow:"0 20px 60px rgba(0,0,0,0.18)"}}>
+      <h3 style={{fontSize:16,fontWeight:700,color:"#1e293b",marginBottom:4}}>シフト編集</h3>
+      <p style={{fontSize:12,color:"#64748b",marginBottom:16}}>{memberName} ・ {time}</p>
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:13,color:"#475569",fontWeight:600,display:"block",marginBottom:6}}>種別</label>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {SLOT_TYPES.map(st=>{const sc=SLOT_C[st];return(
+            <button key={st} onClick={()=>setType(st)} style={{padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:600,border:type===st?"2px solid "+sc.c:"1px solid #e2e8f0",background:type===st?sc.bg:"#fff",color:type===st?sc.c:"#94a3b8"}}>{st}</button>
+          )})}
+        </div>
+      </div>
+      <div style={{marginBottom:20}}>
+        <label style={{fontSize:13,color:"#475569",fontWeight:600,display:"block",marginBottom:6}}>業務内容</label>
+        <textarea value={detail} onChange={e=>setDetail(e.target.value)} placeholder="業務内容を入力..." rows={4} style={{width:"100%",padding:"10px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:14,outline:"none",resize:"vertical",minHeight:80}}/>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        {slot&&<button onClick={onDelete} style={{padding:"10px 16px",background:"#fef2f2",color:"#ef4444",border:"none",borderRadius:8,fontSize:13,fontWeight:600}}>削除</button>}
+        <div style={{flex:1}}/>
+        <button onClick={onClose} style={{padding:"10px 16px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:8,fontSize:13,fontWeight:600}}>キャンセル</button>
+        <button onClick={()=>{if(detail.trim())onSave({t:type,d:detail.trim()})}} style={{padding:"10px 20px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,opacity:detail.trim()?1:0.5}}>保存</button>
+      </div>
+    </div>
+  </div>);
+}
+
+function AlertBanner({alerts,onDismiss}){
+  if(!alerts.length)return null;
+  return(<div style={{position:"fixed",top:0,left:0,right:0,zIndex:998,padding:"8px 12px"}}>
+    {alerts.map(a=>(<div key={a.id} className="alert-banner" style={{background:"#ef4444",color:"#fff",borderRadius:10,padding:"12px 16px",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 4px 20px rgba(239,68,68,0.4)"}}>
+      <div><span style={{fontSize:14,fontWeight:700}}>⚠ {a.name}</span><span style={{fontSize:12,marginLeft:8}}>の締切（{a.deadline}）超過！</span></div>
+      <button onClick={()=>onDismiss(a.id)} style={{background:"rgba(255,255,255,0.2)",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:600}}>OK</button>
+    </div>))}
+  </div>);
+}
+
+/* ── Shift Panel (Editable) ── */
+function ShiftPanel({members,shifts,onUpdateShifts}){
+  const[sf,setSf]=useState("all");
+  const[editInfo,setEditInfo]=useState(null); // {rowIdx, colIdx, memberName, time, slot}
+  const[addingRow,setAddingRow]=useState(false);
+  const[newTime,setNewTime]=useState("");
+  const idx=sf==="all"?members.map((_,i)=>i):[members.indexOf(sf)].filter(i=>i>=0&&i<members.length);
+  const noData=sf!=="all"&&!members.includes(sf);const nt=nowTimeStr();
+
+  const handleCellClick=(ri,mi)=>{
+    const row=shifts[ri];if(!row)return;
+    const slot=row.s[mi]||null;
+    setEditInfo({rowIdx:ri,colIdx:mi,memberName:members[mi]||SHIFT_MEMBERS[mi]||"メンバー",time:row.time,slot});
+  };
+
+  const handleSave=(newSlot)=>{
+    if(!editInfo)return;
+    const updated=shifts.map((row,ri)=>{
+      if(ri!==editInfo.rowIdx)return row;
+      const newS=[...row.s];
+      // Ensure array is long enough
+      while(newS.length<=editInfo.colIdx)newS.push(null);
+      newS[editInfo.colIdx]=newSlot;
+      return{...row,s:newS};
+    });
+    onUpdateShifts(updated);setEditInfo(null);
+  };
+
+  const handleDelete=()=>{
+    if(!editInfo)return;
+    const updated=shifts.map((row,ri)=>{
+      if(ri!==editInfo.rowIdx)return row;
+      const newS=[...row.s];newS[editInfo.colIdx]=null;
+      return{...row,s:newS};
+    });
+    onUpdateShifts(updated);setEditInfo(null);
+  };
+
+  const addTimeRow=()=>{
+    if(!newTime)return;
+    const exists=shifts.some(r=>r.time===newTime);
+    if(exists){setAddingRow(false);setNewTime("");return}
+    const memCount=Math.max(members.length,8);
+    const newRow={time:newTime,s:Array(memCount).fill(null)};
+    const updated=[...shifts,newRow].sort((a,b)=>{
+      const ta=timeToMin(a.time),tb=timeToMin(b.time);
+      // Handle overnight: times < 16:00 are "next day"
+      const aa=ta<16*60?ta+24*60:ta;
+      const bb=tb<16*60?tb+24*60:tb;
+      return aa-bb;
+    });
+    onUpdateShifts(updated);setAddingRow(false);setNewTime("");
+  };
+
+  const deleteRow=(ri)=>{
+    if(!confirm(shifts[ri].time+" の行を削除？"))return;
+    onUpdateShifts(shifts.filter((_,i)=>i!==ri));
+  };
+
   return(<div style={{background:"#fff",borderRadius:14,border:"1px solid #e2e8f0",marginBottom:16,overflow:"hidden"}}>
     <div style={{padding:"14px 18px 10px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
         <h3 style={{fontSize:15,fontWeight:700,color:"#1e293b"}}>📋 シフト表（月曜日）</h3>
-        <span style={{fontSize:12,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:6}}>現在 {nt}</span>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <span style={{fontSize:12,color:"#64748b",background:"#f1f5f9",padding:"3px 10px",borderRadius:6}}>現在 {nt}</span>
+          <button onClick={()=>setAddingRow(!addingRow)} style={{fontSize:10,color:"#fff",background:"#2563eb",border:"none",borderRadius:6,padding:"3px 10px",fontWeight:600}}>{addingRow?"✕":"＋ 時間追加"}</button>
+        </div>
       </div>
+      <p style={{fontSize:10,color:"#94a3b8",marginTop:4}}>セルをタップして編集できます</p>
       <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:8}}>
         <button style={{...P.pill,...(sf==="all"?P.pillAct:{})}} onClick={()=>setSf("all")}>全員</button>
         {members.map((m,i)=><button key={m} style={{...P.pill,...(sf===m?{background:mc(i),color:"#fff",borderColor:mc(i)}:{})}} onClick={()=>setSf(m)}>{m}</button>)}
       </div>
     </div>
+    {addingRow&&(<div style={{padding:"10px 18px",borderTop:"1px solid #f1f5f9",background:"#fafbfc",animation:"slideIn 0.2s ease",display:"flex",gap:8,alignItems:"center"}}>
+      <input type="time" value={newTime} onChange={e=>setNewTime(e.target.value)} style={{padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:6,fontSize:14,outline:"none"}}/>
+      <button onClick={addTimeRow} style={{padding:"8px 16px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontSize:13,fontWeight:600}}>追加</button>
+    </div>)}
     {noData?<div style={{padding:"24px",textAlign:"center",color:"#94a3b8",fontSize:13}}>シフトデータなし</div>:(
       <div style={{overflowX:"auto",padding:"0 0 10px"}}>
         <table style={{borderCollapse:"collapse",width:"100%",minWidth:sf==="all"?1000:350}}>
-          <thead><tr><th style={P.th}>時刻</th>{idx.map(i=><th key={i} style={P.th}><span style={{width:7,height:7,borderRadius:"50%",background:mc(members.indexOf(SHIFT_MEMBERS[i])>=0?members.indexOf(SHIFT_MEMBERS[i]):i),display:"inline-block",marginRight:4}}/>{SHIFT_MEMBERS[i]}</th>)}</tr></thead>
-          <tbody>{SD.map((row,ri)=>{const isN=row.time<=nt&&(ri+1<SD.length?SD[ri+1].time>nt:true);return(<tr key={ri} style={{background:isN?"#eff6ff":ri%2===0?"#fafbfc":"#fff"}}>
-            <td style={{...P.timeCell,...(isN?{color:"#2563eb",fontWeight:700}:{})}}>{isN?"▶ ":""}{row.time}</td>
-            {idx.map(mi=>{const slot=row.s[mi];if(!slot)return<td key={mi} style={{padding:"5px 4px",minWidth:90}}/>;const sc=SLOT_C[slot.t]||SLOT_C["業務"];
-              return<td key={mi} style={{padding:"3px",minWidth:110,maxWidth:170}}><div onClick={()=>setTip(slot)} style={{background:sc.bg,border:`1px solid ${sc.b}`,borderRadius:6,padding:"4px 7px",cursor:"pointer",fontSize:11,color:sc.c,fontWeight:500,lineHeight:1.4,maxHeight:48,overflow:"hidden"}}><b>{slot.t}</b> {slot.d.split("\n")[0].substring(0,25)}</div></td>})}
+          <thead><tr><th style={P.th}>時刻</th>{idx.map(i=><th key={i} style={P.th}><span style={{width:7,height:7,borderRadius:"50%",background:mc(i),display:"inline-block",marginRight:4}}/>{members[i]||SHIFT_MEMBERS[i]}</th>)}</tr></thead>
+          <tbody>{shifts.map((row,ri)=>{const isN=row.time<=nt&&(ri+1<shifts.length?shifts[ri+1].time>nt:true);return(<tr key={ri} style={{background:isN?"#eff6ff":ri%2===0?"#fafbfc":"#fff"}}>
+            <td style={{...P.timeCell,...(isN?{color:"#2563eb",fontWeight:700}:{})}}>
+              <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"center"}}>
+                {isN&&<span>▶</span>}{row.time}
+                <button onClick={()=>deleteRow(ri)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:9,padding:0}} title="行削除">✕</button>
+              </div>
+            </td>
+            {idx.map(mi=>{const slot=row.s&&row.s[mi];
+              if(!slot)return<td key={mi} style={{padding:"4px"}}><div className="shift-empty" onClick={()=>handleCellClick(ri,mi)}><span style={{color:"#d1d5db",fontSize:16}}>+</span></div></td>;
+              const sc=SLOT_C[slot.t]||SLOT_C["業務"];
+              return<td key={mi} style={{padding:"3px"}}><div className="shift-cell" onClick={()=>handleCellClick(ri,mi)} style={{background:sc.bg,border:"1px solid "+sc.b,padding:"4px 7px",fontSize:11,color:sc.c,fontWeight:500,lineHeight:1.4,maxHeight:48,overflow:"hidden"}}><b>{slot.t}</b> {slot.d.split("\n")[0].substring(0,25)}</div></td>})}
           </tr>)})}</tbody>
         </table>
       </div>
     )}
-    {tip&&<Tooltip slot={tip} onClose={()=>setTip(null)}/>}
+    {editInfo&&<ShiftEditModal memberName={editInfo.memberName} time={editInfo.time} slot={editInfo.slot} onSave={handleSave} onDelete={handleDelete} onClose={()=>setEditInfo(null)}/>}
   </div>);
 }
 
-function EditModal({customer,onSave,onClose}){
-  const[dl,setDl]=useState(customer.deadline||"");
-  const[dv,setDv]=useState(customer.delivery||"");
-  return(<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.35)"}}>
-    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,padding:"24px",maxWidth:360,width:"90%",boxShadow:"0 20px 60px rgba(0,0,0,0.18)"}}>
-      <h3 style={{fontSize:16,fontWeight:700,color:"#1e293b",marginBottom:16}}>{customer.name} の時間編集</h3>
-      <div style={{marginBottom:16}}>
-        <label style={{fontSize:13,color:"#475569",fontWeight:600,display:"block",marginBottom:6}}>⏰ 締め時間</label>
-        <input type="time" value={dl} onChange={e=>setDl(e.target.value)} style={{width:"100%",padding:"12px 14px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:16,outline:"none"}}/>
-      </div>
-      <div style={{marginBottom:20}}>
-        <label style={{fontSize:13,color:"#475569",fontWeight:600,display:"block",marginBottom:6}}>🚛 搬入時間</label>
-        <input type="time" value={dv} onChange={e=>setDv(e.target.value)} style={{width:"100%",padding:"12px 14px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:16,outline:"none"}}/>
-      </div>
-      <div style={{display:"flex",gap:8}}>
-        <button onClick={onClose} style={{flex:1,padding:"10px",background:"#f1f5f9",color:"#64748b",border:"none",borderRadius:8,fontSize:14,fontWeight:600}}>キャンセル</button>
-        <button onClick={()=>{if(dl&&dv)onSave(customer.id,dl,dv)}} style={{flex:1,padding:"10px",background:"#2563eb",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,opacity:dl&&dv?1:0.5}}>保存</button>
-      </div>
-    </div>
-  </div>);
-}
-
+/* ── Customer Panel ── */
 function CustomerPanel({customers,onUpdate}){
-  const[adding,setAdding]=useState(false);const[nc,setNc]=useState({name:"",deadline:"",delivery:""});
-  const[editCust,setEditCust]=useState(null);
-  const now=nowMin();const nt=nowTimeStr();const TSTART=0;const TEND=15*60;
+  const[adding,setAdding]=useState(false);const[nc,setNc]=useState({name:"",deadline:"",delivery:""});const[editCust,setEditCust]=useState(null);
+  const now=nowMin();const nt=nowTimeStr();
   const sorted=[...customers].sort((a,b)=>timeToMin(a.delivery)-timeToMin(b.delivery));
-  const cycleStatus=(id)=>{const order=["preparing","packed","delivered"];onUpdate(customers.map(c=>{if(c.id!==id)return c;const ni=(order.indexOf(c.status)+1)%3;return{...c,status:order[ni]}}))};
-  const addCust=()=>{if(!nc.name.trim()||!nc.deadline||!nc.delivery)return;onUpdate([...customers,{id:uid(),name:nc.name.trim(),deadline:nc.deadline,delivery:nc.delivery,status:"preparing",memo:""}]);setNc({name:"",deadline:"",delivery:""});setAdding(false)};
-  const delCust=(id)=>{if(confirm("この得意先を削除？"))onUpdate(customers.filter(c=>c.id!==id))};
+  const cycleStatus=(id)=>{const order=["preparing","packed","delivered"];onUpdate(customers.map(c=>{if(c.id!==id)return c;return{...c,status:order[(order.indexOf(c.status)+1)%3]}}))};
+  const addCust=()=>{if(!nc.name.trim()||!nc.deadline||!nc.delivery)return;onUpdate([...customers,{id:uid(),name:nc.name.trim(),deadline:nc.deadline,delivery:nc.delivery,status:"preparing"}]);setNc({name:"",deadline:"",delivery:""});setAdding(false)};
+  const delCust=(id)=>{if(confirm("削除？"))onUpdate(customers.filter(c=>c.id!==id))};
   const saveCustEdit=(id,dl,dv)=>{onUpdate(customers.map(c=>c.id===id?{...c,deadline:dl,delivery:dv}:c));setEditCust(null)};
-  const resetAll=()=>{if(confirm("全得意先のステータスを準備中に戻す？"))onUpdate(customers.map(c=>({...c,status:"preparing"})))};
-  const pct=(min)=>Math.max(0,Math.min(100,((min-TSTART)/(TEND-TSTART))*100));const nowPct=pct(now);
+  const resetAll=()=>{if(confirm("全リセット？"))onUpdate(customers.map(c=>({...c,status:"preparing"})))};
   const doneCount=customers.filter(c=>c.status==="delivered").length;const packedCount=customers.filter(c=>c.status==="packed").length;
   const urgentCount=customers.filter(c=>c.status==="preparing"&&timeToMin(c.deadline)-now<=60&&timeToMin(c.deadline)-now>0).length;
   const overdueCount=customers.filter(c=>c.status==="preparing"&&now>timeToMin(c.deadline)).length;
-  // Time ruler: 3-hour intervals for mobile readability
-  const rulerHours=[0,3,6,9,12,15];
+
   return(<div style={{background:"#fff",borderRadius:14,border:"1px solid #e2e8f0",marginBottom:16,overflow:"hidden"}}>
     <div style={{padding:"14px 18px 10px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
@@ -185,8 +288,8 @@ function CustomerPanel({customers,onUpdate}){
         </div>
       </div>
       <div style={{display:"flex",gap:8,marginTop:8,fontSize:11,flexWrap:"wrap"}}>
-        {overdueCount>0&&<span style={{color:"#ef4444",fontWeight:700,background:"#fef2f2",padding:"2px 8px",borderRadius:4}}>⚠ 締切超過 {overdueCount}</span>}
-        {urgentCount>0&&<span style={{color:"#f59e0b",fontWeight:700,background:"#fffbeb",padding:"2px 8px",borderRadius:4}}>⏰ あと1時間以内 {urgentCount}</span>}
+        {overdueCount>0&&<span style={{color:"#ef4444",fontWeight:700,background:"#fef2f2",padding:"2px 8px",borderRadius:4}}>⚠ 超過 {overdueCount}</span>}
+        {urgentCount>0&&<span style={{color:"#f59e0b",fontWeight:700,background:"#fffbeb",padding:"2px 8px",borderRadius:4}}>⏰ 1h以内 {urgentCount}</span>}
         <span style={{color:"#3b82f6",background:"#eff6ff",padding:"2px 8px",borderRadius:4}}>梱包済 {packedCount}</span>
         <span style={{color:"#22c55e",background:"#f0fdf4",padding:"2px 8px",borderRadius:4}}>搬入済 {doneCount}/{customers.length}</span>
       </div>
@@ -199,73 +302,40 @@ function CustomerPanel({customers,onUpdate}){
         <button onClick={addCust} style={{padding:"8px 16px",background:"#2563eb",color:"#fff",border:"none",borderRadius:6,fontSize:13,fontWeight:600}}>追加</button>
       </div>
     </div>)}
-    <div style={{padding:"10px 18px 14px",overflowX:"auto"}}>
-      {/* Time ruler - 3 hour intervals */}
-      <div style={{position:"relative",height:22,marginBottom:4,marginLeft:100,marginRight:70}}>
-        {rulerHours.map(h=>(<div key={h} style={{position:"absolute",left:`${pct(h*60)}%`,transform:"translateX(-50%)",textAlign:"center"}}>
-          <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{h}時</span>
-          <div style={{position:"absolute",top:16,left:"50%",width:1,height:6,background:"#e2e8f0"}}/>
-        </div>))}
-      </div>
-      {/* Customer rows */}
-      {sorted.map((c,ci)=>{const dlMin=timeToMin(c.deadline);const dvMin=timeToMin(c.delivery);const st=CSTATUS.find(s=>s.id===c.status)||CSTATUS[0];const isOverdue=c.status==="preparing"&&now>dlMin;const isUrgent=c.status==="preparing"&&!isOverdue&&dlMin-now<=60;const rowBg=isOverdue?"#fef2f2":isUrgent?"#fffbeb":"#fff";
-        const dlPct=pct(dlMin);const dvPct=pct(dvMin);
-        // Remaining time text
-        const remaining=dlMin-now;
-        const remText=c.status!=="preparing"?"":remaining<=0?"超過":remaining<60?`あと${remaining}分`:`あと${Math.floor(remaining/60)}時間${remaining%60>0?(remaining%60+"分"):""}`;
-        return(<div key={c.id} style={{display:"flex",alignItems:"center",borderTop:ci>0?"1px solid #f1f5f9":"none",background:rowBg,padding:"8px 0",minHeight:48}}>
-          {/* Left: name + status */}
-          <div style={{width:100,flexShrink:0,padding:"0 8px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:3}}>
-              <span style={{fontSize:12,fontWeight:700,color:"#1e293b"}}>{c.name}</span>
-              <button onClick={()=>setEditCust(c)} style={{fontSize:12,color:"#3b82f6",background:"none",border:"none",padding:"2px"}}>✎</button>
-              <button onClick={()=>delCust(c.id)} style={{fontSize:12,color:"#d1d5db",background:"none",border:"none",padding:"2px"}}>✕</button>
-            </div>
-            <button onClick={()=>cycleStatus(c.id)} style={{marginTop:3,padding:"3px 8px",borderRadius:5,fontSize:10,fontWeight:600,border:`1px solid ${st.color}40`,background:st.bg,color:st.color,minWidth:50,textAlign:"center"}}>{st.label}</button>
+    <div style={{padding:"8px 12px 14px"}}>
+      {sorted.map((c,ci)=>{const dlMin=timeToMin(c.deadline);const dvMin=timeToMin(c.delivery);const st=CSTATUS.find(s=>s.id===c.status)||CSTATUS[0];const isOverdue=c.status==="preparing"&&now>dlMin;const isUrgent=c.status==="preparing"&&!isOverdue&&dlMin-now<=60&&dlMin-now>0;const rowBg=isOverdue?"#fef2f2":isUrgent?"#fffbeb":"#fff";
+        const endMin=Math.max(dvMin,1);const nowPct=Math.min((now/endMin)*100,105);const dlPct=(dlMin/endMin)*100;
+        const rem=dlMin-now;const remText=c.status!=="preparing"?"":rem<=0?"超過":rem<60?"あと"+rem+"分":"あと"+Math.floor(rem/60)+"h"+(rem%60>0?rem%60+"m":"");
+        return(<div key={c.id} style={{display:"flex",alignItems:"center",borderTop:ci>0?"1px solid #f1f5f9":"none",background:rowBg,padding:"10px 6px",minHeight:52,borderRadius:8,marginBottom:2}}>
+          <div style={{width:90,flexShrink:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:2}}><span style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{c.name}</span><button onClick={()=>setEditCust(c)} style={{fontSize:12,color:"#3b82f6",background:"none",border:"none",padding:"1px"}}>✎</button><button onClick={()=>delCust(c.id)} style={{fontSize:11,color:"#d1d5db",background:"none",border:"none",padding:"1px"}}>✕</button></div>
+            <button onClick={()=>cycleStatus(c.id)} style={{marginTop:4,padding:"3px 8px",borderRadius:5,fontSize:10,fontWeight:600,border:"1px solid "+st.color+"40",background:st.bg,color:st.color,minWidth:50,textAlign:"center",display:"block"}}>{st.label}</button>
           </div>
-          {/* Middle: timeline */}
-          <div style={{flex:1,position:"relative",height:32,marginRight:4}}>
-            {/* Background track */}
-            <div style={{position:"absolute",top:12,left:0,right:0,height:8,background:"#f1f5f9",borderRadius:4}}/>
-            {/* "Progress" bar from 0 to current time - shows how much time has passed */}
-            {now>0&&<div style={{position:"absolute",top:12,left:0,width:`${Math.min(nowPct,dvPct)}%`,height:8,background:isOverdue?"#fca5a540":"#e2e8f0",borderRadius:4,transition:"width 1s linear"}}/>}
-            {/* Zone between deadline and delivery */}
-            {dlPct<dvPct&&<div style={{position:"absolute",top:12,left:`${dlPct}%`,width:`${dvPct-dlPct}%`,height:8,background:st.color+"25",borderRadius:4}}/>}
-            {/* Current time - red line approaching deadline */}
-            <div style={{position:"absolute",top:4,left:`${nowPct}%`,width:2.5,height:24,background:"#ef4444",borderRadius:2,zIndex:3,transition:"left 1s linear"}}>
-              <div style={{position:"absolute",top:-2,left:-3,width:8,height:8,borderRadius:"50%",background:"#ef4444"}}/>
-            </div>
-            {/* Deadline marker - ⏰ */}
-            <div style={{position:"absolute",top:6,left:`${dlPct}%`,width:2,height:20,background:isOverdue?"#ef4444":"#f59e0b",borderRadius:1,zIndex:2}}>
-              <span style={{position:"absolute",top:-14,left:"50%",transform:"translateX(-50%)",fontSize:10,whiteSpace:"nowrap"}}>⏰</span>
-            </div>
-            {/* Delivery marker - 🚛 */}
-            <div style={{position:"absolute",top:6,left:`${dvPct}%`,width:2,height:20,background:"#3b82f6",borderRadius:1,zIndex:2}}>
-              <span style={{position:"absolute",top:-14,left:"50%",transform:"translateX(-50%)",fontSize:10,whiteSpace:"nowrap"}}>🚛</span>
-            </div>
+          <div style={{flex:1,position:"relative",height:28,margin:"0 8px"}}>
+            <div style={{position:"absolute",top:10,left:0,right:0,height:8,background:"#f1f5f9",borderRadius:4}}/>
+            {now>0&&<div style={{position:"absolute",top:10,left:0,width:Math.min(nowPct,100)+"%",height:8,background:isOverdue?"#fca5a540":"#e2e8f0",borderRadius:4,transition:"width 1s linear"}}/>}
+            {dlPct>0&&dlPct<=100&&<div style={{position:"absolute",top:3,left:dlPct+"%",transform:"translateX(-50%)",textAlign:"center",zIndex:2}}><div style={{fontSize:9,marginBottom:1}}>⏰</div><div style={{width:2,height:16,background:isOverdue?"#ef4444":"#f59e0b",borderRadius:1,margin:"0 auto"}}/></div>}
+            <div style={{position:"absolute",top:3,right:0,transform:"translateX(50%)",textAlign:"center",zIndex:2}}><div style={{fontSize:9,marginBottom:1}}>🚛</div><div style={{width:2,height:16,background:"#3b82f6",borderRadius:1,margin:"0 auto"}}/></div>
+            {nowPct<=105&&<div style={{position:"absolute",top:4,left:Math.min(nowPct,100)+"%",transform:"translateX(-50%)",zIndex:3,transition:"left 1s linear"}}><div style={{width:10,height:10,borderRadius:"50%",background:"#ef4444",border:"2px solid #fff",boxShadow:"0 0 4px rgba(239,68,68,0.5)",margin:"0 auto"}}/><div style={{width:2,height:14,background:"#ef4444",margin:"0 auto",borderRadius:1}}/></div>}
           </div>
-          {/* Right: times + remaining */}
-          <div style={{width:66,flexShrink:0,paddingRight:8,textAlign:"right"}}>
-            <div style={{fontSize:10,color:"#f59e0b",fontWeight:600}}>締 {c.deadline||"--:--"}</div>
-            <div style={{fontSize:10,color:"#3b82f6",fontWeight:600}}>搬 {c.delivery||"--:--"}</div>
-            {c.status==="preparing"&&remText&&<div style={{fontSize:9,fontWeight:700,color:isOverdue?"#ef4444":isUrgent?"#f59e0b":"#94a3b8",marginTop:1}}>{remText}</div>}
+          <div style={{width:62,flexShrink:0,textAlign:"right"}}>
+            <div style={{fontSize:11,color:"#f59e0b",fontWeight:700}}>⏰{c.deadline||"--:--"}</div>
+            <div style={{fontSize:11,color:"#3b82f6",fontWeight:700}}>🚛{c.delivery||"--:--"}</div>
+            {c.status==="preparing"&&remText&&<div style={{fontSize:10,fontWeight:800,color:isOverdue?"#ef4444":isUrgent?"#f59e0b":"#94a3b8",marginTop:2}}>{remText}</div>}
           </div>
         </div>)})}
     </div>
-    <div style={{display:"flex",gap:12,padding:"8px 18px 12px",borderTop:"1px solid #f1f5f9",fontSize:10,color:"#64748b",flexWrap:"wrap"}}>
-      <span>🔴 現在時刻</span><span>⏰ 締め時間</span><span>🚛 搬入時間</span>
-      <span style={{marginLeft:"auto"}}>ステータスをタップで切替</span>
-    </div>
+    <div style={{display:"flex",gap:12,padding:"6px 18px 10px",borderTop:"1px solid #f1f5f9",fontSize:10,color:"#64748b"}}><span>🔴現在→⏰締切→🚛搬入</span><span style={{marginLeft:"auto"}}>タップで切替</span></div>
     {editCust&&<EditModal customer={editCust} onSave={saveCustEdit} onClose={()=>setEditCust(null)}/>}
   </div>);
 }
 
 function TaskCard({task,members,onStatus,onDelete,onDup,isOD,fmtD,ga}){
   const[ex,setEx]=useState(false);const pri=PRIORITIES.find(p=>p.id===task.priority)||PRIORITIES[1];const od=isOD(task);
-  return(<div className="hov" style={{background:"#fff",borderRadius:10,padding:"10px 12px",border:"1px solid #e2e8f0",borderLeft:`3px solid ${pri.color}`}}>
+  return(<div className="hov" style={{background:"#fff",borderRadius:10,padding:"10px 12px",border:"1px solid #e2e8f0",borderLeft:"3px solid "+pri.color}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
       <span onClick={()=>setEx(!ex)} style={{fontSize:12,fontWeight:500,color:"#1e293b",lineHeight:1.4,flex:1,cursor:"pointer"}}>{task.title}</span>
-      <div style={{display:"flex",gap:2}}><button onClick={()=>onDup(task)} title="複製" style={{background:"none",border:"none",color:"#d1d5db",fontSize:12}}>⧉</button><button onClick={()=>onDelete(task.id)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:11}}>✕</button></div>
+      <div style={{display:"flex",gap:2}}><button onClick={()=>onDup(task)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:12}}>⧉</button><button onClick={()=>onDelete(task.id)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:11}}>✕</button></div>
     </div>
     {task.memo&&ex&&<div style={{fontSize:10,color:"#64748b",lineHeight:1.6,marginBottom:6,padding:"6px 8px",background:"#f8fafc",borderRadius:6,whiteSpace:"pre-wrap"}}>{task.memo}</div>}
     {task.memo&&!ex&&<div style={{fontSize:10,color:"#94a3b8",marginBottom:4,cursor:"pointer"}} onClick={()=>setEx(true)}>📝 メモあり</div>}
@@ -275,41 +345,41 @@ function TaskCard({task,members,onStatus,onDelete,onDup,isOD,fmtD,ga}){
       {task.dueDate&&<span style={{fontSize:9,color:od?"#ef4444":"#64748b",fontWeight:od?700:400}}>{od?"⚠ ":""}{fmtD(task.dueDate)}</span>}
     </div>
     <div style={{display:"flex",gap:3}}>
-      {STATUSES.map(st=>(<button key={st.id} onClick={()=>onStatus(task.id,st.id)} style={{flex:1,padding:"3px 0",borderRadius:5,fontSize:10,textAlign:"center",fontFamily:"'Noto Sans JP',sans-serif",background:task.status===st.id?st.bg:"transparent",color:task.status===st.id?st.color:"#cbd5e1",fontWeight:task.status===st.id?600:400,border:`1px solid ${task.status===st.id?st.color+"40":"#e2e8f0"}`,transition:"all .12s ease"}}>{st.label}</button>))}
+      {STATUSES.map(st=>(<button key={st.id} onClick={()=>onStatus(task.id,st.id)} style={{flex:1,padding:"3px 0",borderRadius:5,fontSize:10,textAlign:"center",fontFamily:"'Noto Sans JP',sans-serif",background:task.status===st.id?st.bg:"transparent",color:task.status===st.id?st.color:"#cbd5e1",fontWeight:task.status===st.id?600:400,border:"1px solid "+(task.status===st.id?st.color+"40":"#e2e8f0"),transition:"all .12s ease"}}>{st.label}</button>))}
     </div>
   </div>);
 }
 
+/* ── Main App ── */
 function App(){
   const[tasks,setTasks]=useState([]);const[members,setMembers]=useState(SHIFT_MEMBERS);const[customers,setCustomers]=useState(DEFAULT_CUSTOMERS);
+  const[shifts,setShifts]=useState(DEFAULT_SHIFTS);
   const[editMem,setEditMem]=useState(null);const[memIn,setMemIn]=useState("");const[showForm,setShowForm]=useState(false);const[filter,setFilter]=useState("all");
   const[panel,setPanel]=useState(null);const[nt,setNt]=useState({title:"",assignees:[],priority:"mid",dueDate:"",memo:"",tag:""});
   const[loaded,setLoaded]=useState(false);const[addingMem,setAddingMem]=useState(false);const[newMemName,setNewMemName]=useState("");const[viewMode,setViewMode]=useState("board");
-  const skipUntil=useRef(0);const mRef=useRef(null);
+  const[alerts,setAlerts]=useState([]);
+  const skipUntil=useRef(0);const mRef=useRef(null);const notifiedRef=useRef(new Set());
+
+  useEffect(()=>{const h=()=>{requestNotifPermission();document.removeEventListener("click",h)};document.addEventListener("click",h);return()=>document.removeEventListener("click",h)},[]);
+  useEffect(()=>{const check=()=>{const n=nowMin();const td=todayStr();customers.forEach(c=>{if(c.status!=="preparing")return;const dl=timeToMin(c.deadline);if(dl<=0)return;const k=td+"-"+c.id;if(n>=dl&&!notifiedRef.current.has(k)){notifiedRef.current.add(k);sendNotif("⚠ "+c.name+" 締切超過！",c.name+"の締切（"+c.deadline+"）超過");setAlerts(p=>[...p,{id:k,name:c.name,deadline:c.deadline}]);playAlertSound()}const wk=td+"-"+c.id+"-w";if(dl-n<=10&&dl-n>0&&!notifiedRef.current.has(wk)){notifiedRef.current.add(wk);sendNotif("⏰ "+c.name+" あと"+(dl-n)+"分",c.name+"の締切まであと"+(dl-n)+"分");playAlertSound()}})};check();const t=setInterval(check,30000);return()=>clearInterval(t)},[customers]);
+  const dismissAlert=(id)=>setAlerts(p=>p.filter(a=>a.id!==id));
 
   useEffect(()=>{
-    if(FB_OK){
-      const shouldSkip=()=>Date.now()<skipUntil.current;
-      const u1=fbL("tasks",v=>{if(shouldSkip())return;setTasks(v?Object.values(v):[])});
-      const u2=fbL("members",v=>{if(shouldSkip())return;if(v&&v.length>0)setMembers(v)});
-      const u3=fbL("customers",v=>{if(shouldSkip())return;if(v)setCustomers(Array.isArray(v)?v:Object.values(v))});
-      setLoaded(true);return()=>{u1();u2();u3()};
-    }else{
-      try{const d=JSON.parse(localStorage.getItem("nakahara-v3")||"null");if(d){if(d.tasks)setTasks(d.tasks);if(d.members?.length)setMembers(d.members);if(d.customers?.length)setCustomers(d.customers)}}catch(e){}
-      setLoaded(true);
-    }
+    if(FB_OK){const sk=()=>Date.now()<skipUntil.current;
+      const u1=fbL("tasks",v=>{if(sk())return;setTasks(v?Object.values(v):[])});
+      const u2=fbL("members",v=>{if(sk())return;if(v&&v.length>0)setMembers(v)});
+      const u3=fbL("customers",v=>{if(sk())return;if(v)setCustomers(Array.isArray(v)?v:Object.values(v))});
+      const u4=fbL("shifts",v=>{if(sk())return;if(v)setShifts(Array.isArray(v)?v:Object.values(v))});
+      setLoaded(true);return()=>{u1();u2();u3();u4()};
+    }else{try{const d=JSON.parse(localStorage.getItem("nakahara-v3")||"null");if(d){if(d.tasks)setTasks(d.tasks);if(d.members?.length)setMembers(d.members);if(d.customers?.length)setCustomers(d.customers);if(d.shifts?.length)setShifts(d.shifts)}}catch(e){}setLoaded(true)}
   },[]);
 
-  const save=useCallback((t,m,c)=>{
-    if(FB_OK){skipUntil.current=Date.now()+1500;const tm={};t.forEach(x=>{tm[x.id]=x});fbW("tasks",tm);fbW("members",m);fbW("customers",c)}
-    else localStorage.setItem("nakahara-v3",JSON.stringify({tasks:t,members:m,customers:c}));
-  },[]);
-
-  const sT=(fn)=>setTasks(p=>{const n=typeof fn==="function"?fn(p):fn;setTimeout(()=>save(n,members,customers),0);return n});
-  const sM=(fn)=>setMembers(p=>{const n=typeof fn==="function"?fn(p):fn;setTimeout(()=>save(tasks,n,customers),0);return n});
-  const sC=(newC)=>{setCustomers(newC);setTimeout(()=>save(tasks,members,newC),0)};
+  const save=useCallback((t,m,c,sh)=>{if(FB_OK){skipUntil.current=Date.now()+1500;const tm={};t.forEach(x=>{tm[x.id]=x});fbW("tasks",tm);fbW("members",m);fbW("customers",c);fbW("shifts",sh)}else localStorage.setItem("nakahara-v3",JSON.stringify({tasks:t,members:m,customers:c,shifts:sh}))},[]);
+  const sT=(fn)=>setTasks(p=>{const n=typeof fn==="function"?fn(p):fn;setTimeout(()=>save(n,members,customers,shifts),0);return n});
+  const sM=(fn)=>setMembers(p=>{const n=typeof fn==="function"?fn(p):fn;setTimeout(()=>save(tasks,n,customers,shifts),0);return n});
+  const sC=(newC)=>{setCustomers(newC);setTimeout(()=>save(tasks,members,newC,shifts),0)};
+  const sSh=(newSh)=>{setShifts(newSh);setTimeout(()=>save(tasks,members,customers,newSh),0)};
   const togA=(n)=>setNt(p=>({...p,assignees:p.assignees.includes(n)?p.assignees.filter(a=>a!==n):[...p.assignees,n]}));
-
   const addTask=()=>{if(!nt.title.trim()||nt.assignees.length===0)return;sT(p=>[...p,{id:uid(),title:nt.title,assignees:nt.assignees,priority:nt.priority,dueDate:nt.dueDate,memo:nt.memo,tag:nt.tag,status:"todo",createdAt:new Date().toISOString(),completedAt:null}]);setNt({title:"",assignees:[],priority:"mid",dueDate:"",memo:"",tag:""});setShowForm(false)};
   const updSt=(id,st)=>sT(p=>p.map(t=>t.id===id?{...t,status:st,completedAt:st==="done"?new Date().toISOString():null}:t));
   const delTask=(id)=>sT(p=>p.filter(t=>t.id!==id));
@@ -317,11 +387,11 @@ function App(){
   const startEdit=(i)=>{setEditMem(i);setMemIn(members[i]);setTimeout(()=>mRef.current?.focus(),50)};
   const saveEdit=(i)=>{if(memIn.trim()){const o=members[i],n=memIn.trim();sM(p=>p.map((m,j)=>j===i?n:m));sT(p=>p.map(t=>({...t,assignees:(t.assignees||[]).map(a=>a===o?n:a)})))}setEditMem(null);setMemIn("")};
   const addMem=()=>{const n=newMemName.trim();if(!n||members.includes(n))return;sM(p=>[...p,n]);setNewMemName("");setAddingMem(false)};
-  const removeMem=(i)=>{if(members.length<=1)return;if(!confirm(`「${members[i]}」を削除？`))return;const n=members[i];sM(p=>p.filter((_,j)=>j!==i));sT(p=>p.map(t=>({...t,assignees:(t.assignees||[]).filter(a=>a!==n)})).filter(t=>(t.assignees||[]).length>0));if(filter===n)setFilter("all")};
+  const removeMem=(i)=>{if(members.length<=1)return;if(!confirm(members[i]+" を削除？"))return;const n=members[i];sM(p=>p.filter((_,j)=>j!==i));sT(p=>p.map(t=>({...t,assignees:(t.assignees||[]).filter(a=>a!==n)})).filter(t=>(t.assignees||[]).length>0));if(filter===n)setFilter("all")};
 
   const ga=(t)=>t.assignees||[];const filtered=filter==="all"?tasks:tasks.filter(t=>ga(t).includes(filter));
   const isOD=(t)=>t.dueDate&&t.status!=="done"&&new Date(t.dueDate)<new Date(todayStr());
-  const fmtD=(d)=>{if(!d)return"";const x=new Date(d);return`${x.getMonth()+1}/${x.getDate()}`};
+  const fmtD=(d)=>{if(!d)return"";const x=new Date(d);return(x.getMonth()+1)+"/"+x.getDate()};
   const today=todayStr();const todayDone=tasks.filter(t=>t.completedAt?.startsWith(today)).length;const todayOD=tasks.filter(t=>isOD(t)).length;
   const months=last6();const mData=months.map(mk=>{const pm={};members.forEach(m=>{pm[m]=0});tasks.forEach(t=>{if(t.status==="done"&&t.completedAt&&mKey(t.completedAt)===mk)ga(t).forEach(a=>{if(pm[a]!==undefined)pm[a]++})});return{key:mk,label:mLabel(mk),pm,total:Object.values(pm).reduce((a,b)=>a+b,0)}});
   const maxBar=Math.max(1,...mData.map(d=>d.total));
@@ -330,6 +400,7 @@ function App(){
   if(!loaded)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#94a3b8"}}>読み込み中...</div>;
 
   return(<div style={{padding:"20px 12px"}}><div style={{maxWidth:1100,margin:"0 auto"}}>
+    <AlertBanner alerts={alerts} onDismiss={dismissAlert}/>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
       <div><h1 style={{fontSize:22,fontWeight:900,color:"#0f172a"}}>🐟 中原水産タスク管理</h1><span style={{fontSize:10,color:"#22c55e",fontWeight:600}}>● リアルタイム同期中</span></div>
       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
@@ -339,17 +410,15 @@ function App(){
         <button style={P.addBtn} onClick={()=>setShowForm(!showForm)}>{showForm?"✕":"＋ 追加"}</button>
       </div>
     </div>
-
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
       <div style={P.statCard}><div style={{fontSize:24,fontWeight:900,color:"#0f172a"}}>{tasks.filter(t=>t.status!=="done").length}</div><div style={{fontSize:11,color:"#64748b"}}>残タスク</div></div>
       <div style={P.statCard}><div style={{fontSize:24,fontWeight:900,color:"#22c55e"}}>{todayDone}</div><div style={{fontSize:11,color:"#64748b"}}>本日完了</div></div>
       <div style={P.statCard}><div style={{fontSize:24,fontWeight:900,color:todayOD>0?"#ef4444":"#94a3b8"}}>{todayOD}</div><div style={{fontSize:11,color:"#64748b"}}>期限超過</div></div>
       <div style={P.statCard}><div style={{fontSize:24,fontWeight:900,color:"#3b82f6"}}>{members.length}</div><div style={{fontSize:11,color:"#64748b"}}>メンバー</div></div>
     </div>
-
     <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:8,marginBottom:14}}>
       {members.map((m,i)=>{const ld=memLoad[i];return(
-        <div key={`${m}-${i}`} style={{...P.memCard,borderTop:`3px solid ${mc(i)}`,flexShrink:0}} onClick={()=>setFilter(filter===m?"all":m)}>
+        <div key={m+"-"+i} style={{...P.memCard,borderTop:"3px solid "+mc(i),flexShrink:0}} onClick={()=>setFilter(filter===m?"all":m)}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
             <div style={{width:24,height:24,borderRadius:"50%",background:mc(i),color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{m[0]}</div>
             {editMem===i?<input ref={mRef} value={memIn} onChange={e=>setMemIn(e.target.value)} onBlur={()=>saveEdit(i)} onKeyDown={e=>{e.key==="Enter"&&saveEdit(i);e.stopPropagation()}} onClick={e=>e.stopPropagation()} style={{fontSize:11,fontWeight:600,border:"1px solid #3b82f6",borderRadius:4,padding:"2px 4px",outline:"none",width:65}}/>
@@ -365,21 +434,21 @@ function App(){
     </div>
 
     {panel==="customer"&&<CustomerPanel customers={customers} onUpdate={sC}/>}
-    {panel==="shift"&&<ShiftPanel members={members}/>}
+    {panel==="shift"&&<ShiftPanel members={members} shifts={shifts} onUpdateShifts={sSh}/>}
     {panel==="report"&&(<div style={{background:"#fff",borderRadius:14,padding:"18px 20px",border:"1px solid #e2e8f0",marginBottom:16}}>
       <h3 style={{fontSize:15,fontWeight:700,color:"#1e293b",marginBottom:14}}>📊 月間レポート</h3>
       <div style={{display:"flex",gap:10,alignItems:"flex-end",height:160,marginBottom:10}}>
         {mData.map(md=>(<div key={md.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-          <div style={{width:"100%",height:120,display:"flex",alignItems:"flex-end",background:"#f8fafc",borderRadius:6,overflow:"hidden"}}><div style={{display:"flex",flexDirection:"column-reverse",width:"100%",height:"100%"}}>{members.map((m,mi)=>{const v=md.pm[m]||0;if(!v)return null;return<div key={m} style={{width:"100%",height:`${(v/maxBar)*100}%`,background:mc(mi),minHeight:3}} title={`${m}: ${v}件`}/>})}</div></div>
+          <div style={{width:"100%",height:120,display:"flex",alignItems:"flex-end",background:"#f8fafc",borderRadius:6,overflow:"hidden"}}><div style={{display:"flex",flexDirection:"column-reverse",width:"100%",height:"100%"}}>{members.map((m,mi)=>{const v=md.pm[m]||0;if(!v)return null;return<div key={m} style={{width:"100%",height:(v/maxBar)*100+"%",background:mc(mi),minHeight:3}} title={m+": "+v+"件"}/>})}</div></div>
           <span style={{fontSize:11,color:"#64748b"}}>{md.label}</span><span style={{fontSize:10,color:"#94a3b8"}}>{md.total}件</span>
         </div>))}
       </div>
       <div style={{marginTop:14,borderTop:"1px solid #f1f5f9",paddingTop:12}}><h4 style={{fontSize:13,fontWeight:600,color:"#475569",marginBottom:8}}>負荷バランス</h4>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
-          {memLoad.map((ml,i)=>(<div key={ml.name} style={{background:"#f8fafc",borderRadius:8,padding:"8px 10px",borderLeft:`3px solid ${mc(i)}`}}>
+          {memLoad.map((ml,i)=>(<div key={ml.name} style={{background:"#f8fafc",borderRadius:8,padding:"8px 10px",borderLeft:"3px solid "+mc(i)}}>
             <div style={{fontSize:11,fontWeight:600,color:"#1e293b",marginBottom:4}}>{ml.name}</div>
             <div style={{display:"flex",gap:8,fontSize:10}}><span>残<b style={{color:"#f59e0b"}}> {ml.total}</b></span><span>完了<b style={{color:"#22c55e"}}> {ml.done}</b></span>{ml.od>0&&<span style={{color:"#ef4444"}}>遅延<b> {ml.od}</b></span>}</div>
-            {ml.total+ml.done>0&&<div style={{marginTop:4,height:4,background:"#e2e8f0",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:"#22c55e",borderRadius:2,width:`${ml.done/(ml.total+ml.done)*100}%`}}/></div>}
+            {ml.total+ml.done>0&&<div style={{marginTop:4,height:4,background:"#e2e8f0",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:"#22c55e",borderRadius:2,width:ml.done/(ml.total+ml.done)*100+"%"}}/></div>}
           </div>))}
         </div>
       </div>
@@ -389,7 +458,7 @@ function App(){
       <input placeholder="タスク名..." value={nt.title} onChange={e=>setNt(p=>({...p,title:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&nt.assignees.length>0&&addTask()} style={{width:"100%",padding:"10px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:14,outline:"none",marginBottom:10}} autoFocus/>
       <textarea placeholder="メモ・手順（任意）" value={nt.memo} onChange={e=>setNt(p=>({...p,memo:e.target.value}))} style={{width:"100%",padding:"8px 12px",border:"1px solid #e2e8f0",borderRadius:8,fontSize:12,outline:"none",marginBottom:10,resize:"vertical",minHeight:50}} rows={2}/>
       <p style={{fontSize:11,color:"#64748b",fontWeight:500,marginBottom:6}}>担当者（複数可）</p>
-      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{members.map((m,i)=>{const sel=nt.assignees.includes(m);return<button key={m} onClick={()=>togA(m)} style={{padding:"5px 10px",borderRadius:6,border:`1.5px solid ${sel?mc(i):"#e2e8f0"}`,fontSize:11,background:sel?mc(i)+"15":"#fafafa",color:sel?mc(i):"#94a3b8",fontWeight:sel?600:400}}>{sel?"✓ ":""}{m}</button>})}</div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>{members.map((m,i)=>{const sel=nt.assignees.includes(m);return<button key={m} onClick={()=>togA(m)} style={{padding:"5px 10px",borderRadius:6,border:"1.5px solid "+(sel?mc(i):"#e2e8f0"),fontSize:11,background:sel?mc(i)+"15":"#fafafa",color:sel?mc(i):"#94a3b8",fontWeight:sel?600:400}}>{sel?"✓ ":""}{m}</button>})}</div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
         <select value={nt.priority} onChange={e=>setNt(p=>({...p,priority:e.target.value}))} style={P.sel}>{PRIORITIES.map(p=><option key={p.id} value={p.id}>優先度:{p.label}</option>)}</select>
         <select value={nt.tag} onChange={e=>setNt(p=>({...p,tag:e.target.value}))} style={P.sel}><option value="">得意先タグ</option>{TAGS.map(t=><option key={t} value={t}>{t}</option>)}</select>
@@ -411,7 +480,7 @@ function App(){
     {viewMode==="list"&&(<div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
       {filtered.sort((a,b)=>({high:0,mid:1,low:2})[a.priority]-({high:0,mid:1,low:2})[b.priority]).map((task,ti)=>{const pri=PRIORITIES.find(p=>p.id===task.priority)||PRIORITIES[1];const od=isOD(task);const st=STATUSES.find(s=>s.id===task.status);
         return(<div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:"1px solid #f1f5f9",background:ti%2===0?"#fff":"#fafbfc"}}>
-          <button onClick={()=>{const ord=["todo","doing","done"];updSt(task.id,ord[(ord.indexOf(task.status)+1)%3])}} style={{width:22,height:22,borderRadius:"50%",border:`2px solid ${st.color}`,background:task.status==="done"?st.color:"transparent",color:task.status==="done"?"#fff":st.color,fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{task.status==="done"?"✓":""}</button>
+          <button onClick={()=>{const ord=["todo","doing","done"];updSt(task.id,ord[(ord.indexOf(task.status)+1)%3])}} style={{width:22,height:22,borderRadius:"50%",border:"2px solid "+st.color,background:task.status==="done"?st.color:"transparent",color:task.status==="done"?"#fff":st.color,fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{task.status==="done"?"✓":""}</button>
           <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:task.status==="done"?"#94a3b8":"#1e293b",textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</div>{task.memo&&<div style={{fontSize:10,color:"#94a3b8",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.memo}</div>}</div>
           {task.tag&&<span className="tag" style={{background:"#f0f9ff",color:"#0369a1"}}>{task.tag}</span>}
           <div style={{display:"flex",gap:2}}>{ga(task).map(a=>{const idx=members.indexOf(a);return<span key={a} style={{width:20,height:20,borderRadius:"50%",background:idx>=0?mc(idx):"#94a3b8",color:"#fff",fontSize:8,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}} title={a}>{a[0]}</span>})}</div>
